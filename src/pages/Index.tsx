@@ -116,6 +116,7 @@ export default function Index() {
   const [inviteLink, setInviteLink] = useState("");
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [joinModalOpen, setJoinModalOpen] = useState(false);
+  const [joinStep, setJoinStep] = useState<"choose" | "nickname" | "success">("choose");
   const [joinSuccess, setJoinSuccess] = useState(false);
   const [playerName, setPlayerName] = useState("");
   const [playerNameSet, setPlayerNameSet] = useState(false);
@@ -136,6 +137,7 @@ export default function Index() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("invite")) {
+      setJoinStep("choose");
       setJoinModalOpen(true);
     }
   }, []);
@@ -186,11 +188,11 @@ export default function Index() {
   const handleJoin = () => {
     if (!playerName.trim()) return;
     playWelcome();
-    setJoinSuccess(true);
+    setJoinStep("success");
     setPlayerNameSet(true);
     const newMember = {
       id: members.length + 1,
-      name: playerName,
+      name: playerName.trim(),
       role: "member",
       rank: 0,
       power: 0,
@@ -200,9 +202,10 @@ export default function Index() {
     setMembers(prev => [...prev, newMember]);
     setTimeout(() => {
       setJoinModalOpen(false);
+      setJoinStep("choose");
       setJoinSuccess(false);
       setWelcomeShown(true);
-      showNotification("🔥 Добро пожаловать в Орду, " + playerName + "!");
+      showNotification("🔥 Добро пожаловать в Орду, " + playerName.trim() + "!");
     }, 3500);
   };
 
@@ -365,48 +368,78 @@ export default function Index() {
 
       {/* Join Modal */}
       {joinModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm">
           <div className="bg-horde-card border-2 border-horde-accent rounded-2xl p-8 max-w-sm w-full mx-4 text-center shadow-glow animate-scale-in">
-            {!joinSuccess ? (
-              <>
+
+            {/* Шаг 1 — Выбор */}
+            {joinStep === "choose" && (
+              <div className="animate-fade-in">
                 <div className="text-6xl mb-4">⚔️</div>
                 <h2 className="text-2xl font-black text-horde-accent mb-2 uppercase tracking-widest">Орда зовёт!</h2>
-                <p className="text-gray-300 mb-2 text-sm">Тебя приглашают вступить в альянс</p>
-                <p className="text-horde-accent font-black text-xl mb-5">«ОРДА»</p>
-                <p className="text-gray-500 text-xs mb-4">Puzzles & Conquest</p>
-                <input
-                  className="w-full bg-horde-bg border border-horde-border rounded-xl px-4 py-3 mb-4 text-center text-horde-text placeholder-gray-600 outline-none focus:border-horde-accent transition-colors"
-                  placeholder="Введи своё игровое имя..."
-                  value={playerName}
-                  onChange={e => setPlayerName(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && handleJoin()}
-                />
+                <p className="text-gray-400 text-sm mb-1">Тебя приглашают вступить в альянс</p>
+                <p className="text-horde-accent font-black text-2xl mb-1">«ОРДА»</p>
+                <p className="text-gray-600 text-xs mb-7">Puzzles &amp; Conquest</p>
                 <div className="flex gap-3">
                   <button
-                    onClick={handleJoin}
-                    className="flex-1 bg-horde-accent text-black font-black py-3 rounded-xl hover:scale-105 transition-transform uppercase tracking-wider text-sm"
+                    onClick={() => { setPlayerName(""); setJoinStep("nickname"); }}
+                    className="flex-1 bg-horde-accent text-black font-black py-3.5 rounded-xl hover:scale-105 transition-transform uppercase tracking-wider text-sm"
                   >
                     🔥 Вступить!
                   </button>
                   <button
                     onClick={() => setJoinModalOpen(false)}
-                    className="flex-1 bg-horde-border/60 text-gray-300 font-bold py-3 rounded-xl hover:bg-gray-600 transition-colors text-sm"
+                    className="flex-1 bg-horde-border/60 text-gray-300 font-bold py-3.5 rounded-xl hover:bg-gray-700 transition-colors text-sm"
                   >
                     Отказаться
                   </button>
                 </div>
-              </>
-            ) : (
-              <div className="animate-fade-in py-4">
+              </div>
+            )}
+
+            {/* Шаг 2 — Ввод ника */}
+            {joinStep === "nickname" && (
+              <div className="animate-fade-in">
+                <div className="text-5xl mb-4">🛡️</div>
+                <h2 className="text-xl font-black text-horde-accent mb-1 uppercase tracking-widest">Твой боевой ник</h2>
+                <p className="text-gray-500 text-xs mb-5">Введи своё игровое имя из Puzzles &amp; Conquest</p>
+                <input
+                  autoFocus
+                  className="w-full bg-horde-bg border-2 border-horde-border focus:border-horde-accent rounded-xl px-4 py-3 mb-4 text-center text-horde-text placeholder-gray-600 outline-none transition-colors text-base font-bold tracking-wide"
+                  placeholder="Игровое имя..."
+                  value={playerName}
+                  maxLength={30}
+                  onChange={e => setPlayerName(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handleJoin()}
+                />
+                <button
+                  onClick={handleJoin}
+                  disabled={!playerName.trim()}
+                  className="w-full bg-horde-accent text-black font-black py-3.5 rounded-xl hover:scale-105 transition-transform uppercase tracking-wider text-sm disabled:opacity-40 disabled:scale-100 mb-2"
+                >
+                  ⚔️ Вступить в Орду!
+                </button>
+                <button
+                  onClick={() => setJoinStep("choose")}
+                  className="text-gray-600 hover:text-gray-400 text-xs transition-colors"
+                >
+                  ← Назад
+                </button>
+              </div>
+            )}
+
+            {/* Шаг 3 — Успех */}
+            {joinStep === "success" && (
+              <div className="animate-fade-in py-2">
                 <div className="text-7xl mb-4 animate-bounce">🏆</div>
-                <h2 className="text-3xl font-black text-horde-accent mb-3 uppercase tracking-widest">
+                <h2 className="text-3xl font-black text-horde-accent mb-3 uppercase tracking-widest leading-tight">
                   Добро пожаловать<br />в Орду!
                 </h2>
                 <p className="text-gray-300 text-lg">Воин <span className="text-white font-black">{playerName}</span></p>
                 <p className="text-gray-500 text-sm mt-1">присоединился к альянсу!</p>
-                <div className="mt-5 text-3xl tracking-widest">⚔️ 🔥 🛡️</div>
+                <div className="mt-6 text-4xl tracking-widest animate-pulse">⚔️ 🔥 🛡️</div>
               </div>
             )}
+
           </div>
         </div>
       )}
