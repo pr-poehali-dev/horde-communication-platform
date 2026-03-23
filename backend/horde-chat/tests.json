@@ -1,0 +1,22 @@
+{
+  "tests": [
+    {
+      "name": "GET messages",
+      "method": "GET",
+      "path": "/",
+      "expectedStatus": 200,
+      "expectedBody": {"messages": []},
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "POST message",
+      "method": "POST",
+      "path": "/",
+      "headers": {"Content-Type": "application/json"},
+      "body": {"author": "ТестВоин", "text": "Тест"},
+      "expectedStatus": 200,
+      "expectedBody": {"author": "ТестВоин"},
+      "bodyMatcher": "partial"
+    }
+  ]
+}

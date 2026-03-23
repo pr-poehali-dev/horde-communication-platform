@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Icon from "@/components/ui/icon";
 
 const BANNER_URL =
   "https://cdn.poehali.dev/projects/1d9a2050-217f-4d55-bb71-bc10e4d3a90b/files/df199173-0b63-41a9-b736-33dc192548cd.jpg";
 
 const LEADER_PASSWORD = "HORDE_LEADER_2024";
+const CHAT_API = "https://functions.poehali.dev/444170fe-dc70-4101-8fb6-cb0a715663e2";
 
 const RANKS = [
   { name: "Новобранец", icon: "⚔️", min: 0, color: "#9ca3af" },
@@ -32,11 +33,7 @@ const INITIAL_MEMBERS = [
   { id: 5, name: "ТёмныйЛис", role: "member", rank: 1, power: 320, joinDate: "2024-04-05", achievements: ["first_join"] },
 ];
 
-const INITIAL_CHAT = [
-  { id: 1, author: "ВождьОрды", text: "Приветствую всех воинов! Орда непобедима! ⚔️", time: "10:00", translated: {} as Record<string, string> },
-  { id: 2, author: "ЧёрныйВолк", text: "Готов к бою! Кто идёт на рейд?", time: "10:15", translated: {} as Record<string, string> },
-  { id: 3, author: "СтальнойКулак", text: "Я в деле! Сегодня захватим новые территории.", time: "10:22", translated: {} as Record<string, string> },
-];
+type ChatMessage = { id: number; author: string; text: string; time: string; translated: Record<string, string> };
 
 const INITIAL_RULES = `⚔️ ПРАВИЛА АЛЬЯНСА «ОРДА» ⚔️
 
@@ -104,7 +101,9 @@ function generateInviteLink() {
 export default function Index() {
   const [page, setPage] = useState("home");
   const [members, setMembers] = useState(INITIAL_MEMBERS);
-  const [chat, setChat] = useState(INITIAL_CHAT);
+  const [chat, setChat] = useState<ChatMessage[]>([]);
+  const [chatLoading, setChatLoading] = useState(true);
+  const [chatSending, setChatSending] = useState(false);
   const [rules, setRules] = useState(INITIAL_RULES);
   const [chatInput, setChatInput] = useState("");
   const [chatLang, setChatLang] = useState("ru");
@@ -141,6 +140,21 @@ export default function Index() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat]);
+
+  const fetchMessages = useCallback(async () => {
+    try {
+      const res = await fetch(CHAT_API);
+      const data = await res.json();
+      setChat(data.messages.map((m: { id: number; author: string; text: string; time: string }) => ({ ...m, translated: {} })));
+    } catch (e) { console.warn(e); }
+    finally { setChatLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    fetchMessages();
+    const interval = setInterval(fetchMessages, 5000);
+    return () => clearInterval(interval);
+  }, [fetchMessages]);
 
   const showNotification = (msg: string) => {
     setNotification(msg);
@@ -201,18 +215,27 @@ export default function Index() {
     }
   };
 
-  const handleSendMessage = () => {
-    if (!chatInput.trim()) return;
+  const handleSendMessage = async () => {
+    if (!chatInput.trim() || chatSending) return;
     const name = playerNameSet ? playerName : "Воин";
-    const newMsg = {
-      id: Date.now(),
-      author: name,
-      text: chatInput,
-      time: new Date().toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }),
-      translated: {} as Record<string, string>,
-    };
-    setChat(prev => [...prev, newMsg]);
+    const text = chatInput;
     setChatInput("");
+    setChatSending(true);
+    try {
+      const res = await fetch(CHAT_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ author: name, text }),
+      });
+      const newMsg = await res.json();
+      setChat(prev => [...prev, { ...newMsg, translated: {} }]);
+    } catch (e) {
+      console.warn(e);
+      showNotification("⚠️ Ошибка отправки сообщения");
+      setChatInput(text);
+    } finally {
+      setChatSending(false);
+    }
   };
 
   const handleTranslate = (msgId: number) => {
@@ -555,6 +578,17 @@ export default function Index() {
               </div>
             </div>
             <div className="flex-1 overflow-y-auto space-y-3 bg-horde-card border border-horde-border rounded-2xl p-4 mb-3 min-h-0">
+              {chatLoading && (
+                <div className="flex items-center justify-center h-full text-gray-500 gap-2">
+                  <Icon name="Loader" size={16} className="animate-spin" />
+                  <span className="text-sm">Загрузка чата...</span>
+                </div>
+              )}
+              {!chatLoading && chat.length === 0 && (
+                <div className="flex items-center justify-center h-full text-gray-600 text-sm">
+                  Пока нет сообщений. Напишите первым! ⚔️
+                </div>
+              )}
               {chat.map(msg => {
                 const showTranslated = messageTranslated[msg.id] && chatLang !== "ru";
                 return (
@@ -596,9 +630,10 @@ export default function Index() {
               />
               <button
                 onClick={handleSendMessage}
-                className="bg-horde-accent text-black font-bold px-4 py-3 rounded-xl hover:scale-105 transition-transform"
+                disabled={chatSending}
+                className="bg-horde-accent text-black font-bold px-4 py-3 rounded-xl hover:scale-105 transition-transform disabled:opacity-50 disabled:scale-100"
               >
-                <Icon name="Send" size={18} />
+                <Icon name={chatSending ? "Loader" : "Send"} size={18} className={chatSending ? "animate-spin" : ""} />
               </button>
             </div>
             {chatLang !== "ru" && (
