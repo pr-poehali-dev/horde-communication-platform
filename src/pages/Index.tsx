@@ -126,6 +126,9 @@ export default function Index() {
   const [notification, setNotification] = useState<string | null>(null);
   const [welcomeShown, setWelcomeShown] = useState(false);
   const [messageTranslated, setMessageTranslated] = useState<Record<number, boolean>>({});
+  const [editingName, setEditingName] = useState(false);
+  const [newNameInput, setNewNameInput] = useState("");
+  const [isOfficer, setIsOfficer] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -206,12 +209,24 @@ export default function Index() {
   const handleLeaderLogin = () => {
     if (leaderPassword === LEADER_PASSWORD) {
       setIsLeader(true);
+      setIsOfficer(false);
       setLeaderLoginOpen(false);
       setLeaderError(false);
       setLeaderPassword("");
       showNotification("⚔️ Доступ Главы открыт!");
     } else {
       setLeaderError(true);
+    }
+  };
+
+  const handleOfficerCheck = () => {
+    if (!playerNameSet) return;
+    const member = members.find(m => m.name === playerName && (m.role === "officer" || m.role === "leader"));
+    if (member) {
+      setIsOfficer(true);
+      showNotification(`🛡️ Офицерский доступ активирован, ${playerName}!`);
+    } else {
+      showNotification("⛔ Ваш никнейм не найден среди офицеров");
     }
   };
 
@@ -301,6 +316,25 @@ export default function Index() {
     const link = generateInviteLink();
     setInviteLink(link);
     navigator.clipboard.writeText(link).then(() => showNotification("🔗 Ссылка скопирована в буфер!"));
+  };
+
+  const handleDeleteMessage = async (id: number) => {
+    setChat(prev => prev.filter(m => m.id !== id));
+    try {
+      await fetch(`${CHAT_API}?id=${id}`, { method: "DELETE" });
+    } catch (e) { console.warn(e); }
+  };
+
+  const canModerateChat = isLeader || isOfficer;
+
+  const handleSaveName = () => {
+    const trimmed = newNameInput.trim();
+    if (!trimmed || trimmed.length < 2) return;
+    setPlayerName(trimmed);
+    setPlayerNameSet(true);
+    setEditingName(false);
+    setNewNameInput("");
+    showNotification(`✅ Имя изменено на «${trimmed}»`);
   };
 
   const roleLabel = (role: string) => {
@@ -609,6 +643,15 @@ export default function Index() {
                             {showTranslated ? "Оригинал" : "Перевести"}
                           </button>
                         )}
+                        {canModerateChat && (
+                          <button
+                            onClick={() => handleDeleteMessage(msg.id)}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity ml-auto text-red-500 hover:text-red-400 flex items-center gap-1 text-xs"
+                            title="Удалить сообщение"
+                          >
+                            <Icon name="Trash2" size={13} />
+                          </button>
+                        )}
                       </div>
                       <p className="text-gray-300 text-sm break-words">
                         {showTranslated ? getTranslated(msg.text, chatLang) : msg.text}
@@ -641,6 +684,52 @@ export default function Index() {
                 Наведи на сообщение → кнопка «Перевести» на {LANGS[chatLang]}
               </p>
             )}
+
+            {/* Name edit & officer access */}
+            <div className="flex items-center gap-2 mt-1 flex-shrink-0 flex-wrap">
+              {!editingName ? (
+                <button
+                  onClick={() => { setEditingName(true); setNewNameInput(playerNameSet ? playerName : ""); }}
+                  className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors border border-horde-border rounded-lg px-3 py-1.5"
+                >
+                  <Icon name="Pencil" size={12} />
+                  {playerNameSet ? `Имя: ${playerName}` : "Установить имя"}
+                </button>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    autoFocus
+                    value={newNameInput}
+                    onChange={e => setNewNameInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") handleSaveName(); if (e.key === "Escape") setEditingName(false); }}
+                    placeholder="Новое имя..."
+                    maxLength={30}
+                    className="bg-horde-bg border border-horde-accent rounded-lg px-3 py-1.5 text-xs text-horde-text placeholder-gray-600 outline-none w-36"
+                  />
+                  <button onClick={handleSaveName} className="bg-horde-accent text-black text-xs font-bold px-2.5 py-1.5 rounded-lg hover:scale-105 transition-transform">
+                    ОК
+                  </button>
+                  <button onClick={() => setEditingName(false)} className="text-gray-500 hover:text-white text-xs px-2 py-1.5 transition-colors">
+                    ✕
+                  </button>
+                </div>
+              )}
+              {!isLeader && !isOfficer && playerNameSet && (
+                <button
+                  onClick={handleOfficerCheck}
+                  className="flex items-center gap-1.5 text-xs text-purple-500 hover:text-purple-300 transition-colors border border-purple-800/50 rounded-lg px-3 py-1.5"
+                >
+                  <Icon name="Shield" size={12} />
+                  Офицерский доступ
+                </button>
+              )}
+              {isOfficer && !isLeader && (
+                <span className="flex items-center gap-1.5 text-xs text-purple-400 border border-purple-600/40 rounded-lg px-3 py-1.5">
+                  <Icon name="Shield" size={12} />
+                  Офицер
+                </span>
+              )}
+            </div>
           </div>
         )}
 
